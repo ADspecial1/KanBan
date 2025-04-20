@@ -103,7 +103,6 @@
 
 // export default UpcomingEvents;
 
-
 import { Badge, Card, List } from "antd";
 import React, { useEffect, useState } from "react";
 import { Text } from "../text";
@@ -150,7 +149,7 @@ const UpcomingEvents: React.FC = () => {
         .map((doc) => {
           const data = doc.data();
           return {
-            id: doc.id, // ✅ Fix applied here
+            id: doc.id,
             ...data,
           } as EventType;
         })
@@ -159,7 +158,6 @@ const UpcomingEvents: React.FC = () => {
           const eventStart = dayjs(`${event.startDate} ${event.startTime}`, "YYYY-MM-DD HH:mm");
           const eventEnd = dayjs(`${event.endDate} ${event.endTime}`, "YYYY-MM-DD HH:mm");
 
-          // 🔥 .isBetween() hata diya, iske jagah manually check kar raha hu
           return eventStart.isAfter(now) || (now.isAfter(eventStart) && now.isBefore(eventEnd));
         })
         .sort((a, b) =>
@@ -180,37 +178,45 @@ const UpcomingEvents: React.FC = () => {
   return (
     <Card
       title={
-        <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "1px" }}>
           <CalendarOutlined />
           <Text size="sm" style={{ marginLeft: "0.3rem" }}>Upcoming Events</Text>
         </div>
       }
-      style={{ height: "460px", overflow: "auto", padding: "6px", borderRadius: "4px", marginBottom: "20px" }}
+      bodyStyle={{ padding: "0 0 0 15px" }} // 👈 this reduces the inner padding
+      style={{
+        height: "482px",
+        overflow: "auto",
+        borderRadius: "12px",
+        marginBottom: "20px"
+      }}
     >
       {isLoading ? (
-        <div style={{ textAlign: "center", padding: "4px", fontSize: "10px", color: "#999" }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: "4px", fontSize: "10px", color: "#999" }}>
+          Loading...
+        </div>
       ) : events.length > 0 ? (
         <List
           itemLayout="horizontal"
           dataSource={events}
-          renderItem={(item) => {
-            return (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={<Badge color={item.color || "blue"} />}
-                  title={
-                    <Text size="xs">
-                      {dayjs(item.startDate).format("DD MMM YYYY")} | {item.startTime} - {item.endTime}  
-                    </Text>
-                  }
-                  description={<Text ellipsis={{ tooltip: true }} strong>{item.title}</Text>}
-                />
-              </List.Item>
-            );
-          }}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={<Badge color={item.color || "blue"} />}
+                title={
+                  <Text size="xs">
+                    {dayjs(item.startDate).format("DD MMM YYYY")} | {item.startTime} - {item.endTime}
+                  </Text>
+                }
+                description={<Text ellipsis={{ tooltip: true }} strong>{item.title}</Text>}
+              />
+            </List.Item>
+          )}
         />
       ) : (
-        <div style={{ textAlign: "center", padding: "4px", fontSize: "10px", color: "#999" }}>No Upcoming Events</div>
+        <div style={{ textAlign: "center", padding: "4px", fontSize: "10px", color: "#999" }}>
+          No Upcoming Events
+        </div>
       )}
     </Card>
   );

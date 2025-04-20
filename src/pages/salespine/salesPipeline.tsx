@@ -1,320 +1,1215 @@
+// // Import statements
 // import { useEffect, useState } from "react";
 // import { db } from "../../firebase/firebase";
-// import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-// import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
-// import { Col, Row, Button, Input, Modal, Form, Select, DatePicker, Upload } from "antd";
-// import { UploadOutlined } from "@ant-design/icons";
+// import {
+//   collection,
+//   getDocs,
+//   addDoc,
+//   updateDoc,
+//   doc,
+// } from "firebase/firestore";
+// import {
+//   Col, Row, Button, Input, Modal, Form, Select, message, Spin,
+// } from "antd";
 // import { useGetIdentity } from "@refinedev/core";
+// import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
-// const storage = getStorage();
-
+// // Component
 // export const SalesPipeline = () => {
 //   const [deals, setDeals] = useState([]);
-//   const [isModalVisible, setIsModalVisible] = useState(false);
+//   const [companies, setCompanies] = useState([]);
+//   const [loading, setLoading] = useState(true);
 //   const [form] = Form.useForm();
+//   const [isModalVisible, setIsModalVisible] = useState(false);
 //   const { data: user } = useGetIdentity();
-//   const [contacts, setContacts] = useState([]);
-//   const [owners, setOwners] = useState([]);
-
-//   useEffect(() => {
-//     const fetchDeals = async () => {
-//       try {
-//         const dealsSnapshot = await getDocs(collection(db, "sales_pipeline"));
-//         const dealsData = dealsSnapshot.docs
-//           .map((doc) => ({ id: doc.id, ...doc.data(), status: doc.data()?.status?.toLowerCase() }))
-//           .filter((deal) => deal.userId === user?.email);
-
-//         setDeals(dealsData);
-//       } catch (error) {
-//         console.error("Error fetching deals: ", error);
-//       }
-//     };
-
-//     const fetchContactsAndOwners = async () => {
-//       try {
-//         const contactsSnapshot = await getDocs(collection(db, "contacts"));
-//         const contactsData = contactsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-//         setContacts(contactsData);
-//         setOwners(contactsData);
-//       } catch (error) {
-//         console.error("Error fetching contacts: ", error);
-//       }
-//     };
-
-//     if (user) {
-//       fetchDeals();
-//       fetchContactsAndOwners();
-//     }
-//   }, [user]);
 
 //   const statusList = ["new", "follow-up", "under review", "demo", "won", "lost"];
 
-//   const handleDragStart = (e, deal) => {
-//     e.dataTransfer.setData("dealId", deal.id);
-//   };
+//   useEffect(() => {
+//     const fetchData = async () => {
+//       if (!user?.email) return;
+//       try {
+//         const dealSnap = await getDocs(collection(db, "sales_pipeline"));
+//         const companySnap = await getDocs(collection(db, "company"));
 
-//   const handleDrop = async (e, status) => {
-//     const dealId = e.dataTransfer.getData("dealId");
-//     const draggedDeal = deals.find((deal) => deal.id === dealId);
+//         const dealsData = dealSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+//           .filter(deal => deal.userId === user.email);
 
-//     if (draggedDeal && draggedDeal.status !== status) {
-//       const updatedDeals = deals.map((deal) => (deal.id === dealId ? { ...deal, status } : deal));
+//         const companyData = companySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+//           .filter(company => company.userId === user.email);
+
+//         setDeals(dealsData);
+//         setCompanies(companyData);
+//       } catch (err) {
+//         message.error("Failed to fetch data");
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     fetchData();
+//   }, [user]);
+
+//   const onDragEnd = async (result) => {
+//     if (!result.destination) return;
+//     const { draggableId, destination } = result;
+
+//     const draggedDeal = deals.find(deal => deal.id === draggableId);
+//     if (!draggedDeal || draggedDeal.status === destination.droppableId) return;
+
+//     try {
+//       const newStatus = destination.droppableId;
+//       const updatedDeals = deals.map(deal =>
+//         deal.id === draggableId ? { ...deal, status: newStatus } : deal
+//       );
+
 //       setDeals(updatedDeals);
-
-//       const dealRef = doc(db, "sales_pipeline", dealId);
-//       await updateDoc(dealRef, { status });
+//       await updateDoc(doc(db, "sales_pipeline", draggableId), {
+//         status: newStatus,
+//         date: new Date().toLocaleDateString(), // Save latest move date
+//       });
+//       message.success("Deal status updated");
+//     } catch (error) {
+//       console.error(error);
+//       message.error("Failed to update deal");
 //     }
 //   };
 
-//   const showModal = () => setIsModalVisible(true);
-//   const handleCancel = () => {
-//     setIsModalVisible(false);
-//     form.resetFields();
-//   };
-
-//   const handleOk = async () => {
+//   const handleAddDeal = async () => {
 //     try {
 //       const values = await form.validateFields();
-//       const file = values.avatar?.file.originFileObj;
-//       let avatarURL = "";
+//       const selectedCompany = companies.find(c => c.id === values.company);
+//       if (!selectedCompany) return message.error("Invalid company selected");
 
-//       if (file) {
-//         const storageRef = ref(storage, `avatars/${file.name}`);
-//         await uploadBytes(storageRef, file);
-//         avatarURL = await getDownloadURL(storageRef);
-//       }
+//       const newDeal = {
+//         title: values.title,
+//         company: selectedCompany.name,
+//         amount: parseFloat(values.amount),
+//         status: values.status || "new",
+//         date: new Date().toLocaleDateString(), // Store in string format like "15/04/2025"
+//         userId: user.email,
+//       };
 
-//       const newDeal = { ...values, avatar: avatarURL, status: "new", userId: user?.email };
 //       const docRef = await addDoc(collection(db, "sales_pipeline"), newDeal);
 //       setDeals([...deals, { id: docRef.id, ...newDeal }]);
-//       handleCancel();
-//     } catch (error) {
-//       console.error("Failed to add deal: ", error);
+//       message.success("Deal added");
+//       form.resetFields();
+//       setIsModalVisible(false);
+//     } catch (err) {
+//       message.error("Error adding deal");
 //     }
 //   };
 
-//   return (
-//     <div style={{ padding: "20px", background: "#f3f4f6" }}>
-//       <Row gutter={[32, 32]}>
-//         {statusList.map((status) => (
-//           <Col key={status} xs={24} sm={12} xl={4}>
-//             <div
-//               style={{ padding: "20px", background: "white", borderRadius: "10px", boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)" }}
-//               onDragOver={(e) => e.preventDefault()}
-//               onDrop={(e) => handleDrop(e, status)}
-//             >
-//               <h3>{status.toUpperCase()}</h3>
-//               {deals.filter((deal) => deal.status === status).length > 0 ? (
-//                 deals.filter((deal) => deal.status === status).map((deal) => (
-//                   <div
-//                     key={deal.id}
-//                     draggable={deal.status !== "won" && deal.status !== "lost"}
-//                     onDragStart={(e) => handleDragStart(e, deal)}
-//                     style={{ padding: "10px", margin: "10px 0", border: "1px solid #ddd", borderRadius: "5px", cursor: deal.status !== "won" && deal.status !== "lost" ? "grab" : "not-allowed", background: "#e6f7ff" }}
-//                   >
-//                     {deal.title} - {deal.company} - {deal.owner} - {deal.date}
-//                   </div>
-//                 ))
-//               ) : (
-//                 <p>No Deals</p>
-//               )}
-//               {status === "new" && (
-//                 <Button type="dashed" style={{ marginTop: "10px" }} onClick={showModal}>
-//                   + Add New Deal
-//                 </Button>
-//               )}
-//             </div>
-//           </Col>
-//         ))}
-//       </Row>
+//   if (loading) return <Spin size="large" style={{ margin: "100px auto", display: "block" }} />;
 
-//       <Modal title="Add New Deal" visible={isModalVisible} onOk={handleOk} onCancel={handleCancel}>
-//         <Form form={form} layout="vertical">
-//           <Form.Item name="title" label="Title" rules={[{ required: true, message: "Please enter deal title" }]}> 
-//             <Input placeholder="Enter Title" />
+//   return (
+//     <div style={{ padding: 20, background: "#f3f4f6" }}>
+//       <Button type="primary" onClick={() => setIsModalVisible(true)} style={{ marginBottom: 20 }}>
+//         + Add Deal
+//       </Button>
+
+//       <Modal
+//         open={isModalVisible}
+//         title="Add Deal"
+//         onCancel={() => setIsModalVisible(false)}
+//         onOk={handleAddDeal}
+//       >
+//         <Form layout="vertical" form={form}>
+//           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+//             <Input />
 //           </Form.Item>
-//           <Form.Item name="company" label="Company" rules={[{ required: true, message: "Please select company" }]}> 
-//             <Select placeholder="Select Company">
-//               {contacts.map((contact) => (
-//                 <Select.Option key={contact.id} value={contact.company}>{contact.company}</Select.Option>
+
+//           <Form.Item name="company" label="Company" rules={[{ required: true }]}>
+//             <Select placeholder="Select a company">
+//               {companies.map(c => (
+//                 <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>
 //               ))}
 //             </Select>
 //           </Form.Item>
-//           <Form.Item name="owner" label="Owner" rules={[{ required: true, message: "Please select owner" }]}> 
-//             <Select placeholder="Select Owner">
-//               {owners.map((owner) => (
-//                 <Select.Option key={owner.id} value={owner.name}>{owner.name}</Select.Option>
+
+//           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+//             <Select>
+//               {statusList.map(s => (
+//                 <Select.Option key={s} value={s}>{s.toUpperCase()}</Select.Option>
 //               ))}
 //             </Select>
 //           </Form.Item>
-//           <Form.Item name="date" label="Date" rules={[{ required: true, message: "Please select date" }]}> 
-//             <DatePicker style={{ width: "100%" }} />
+
+//           <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+//             <Input type="number" />
 //           </Form.Item>
-//           <Form.Item name="avatar" label="Upload Avatar">
-//             <Upload beforeUpload={() => false} listType="picture">
-//               <Button icon={<UploadOutlined />}>Upload Avatar</Button>
-//             </Upload>
+
+//           <Form.Item label="Owner">
+//             <Input disabled value={user?.email} />
 //           </Form.Item>
 //         </Form>
 //       </Modal>
+
+//       <DragDropContext onDragEnd={onDragEnd}>
+//         <Row gutter={16}>
+//           {statusList.map(status => (
+//             <Col span={4} key={status}>
+//               <h4>{status.toUpperCase()}</h4>
+//               <Droppable droppableId={status}>
+//                 {(provided) => (
+//                   <div
+//                     ref={provided.innerRef}
+//                     {...provided.droppableProps}
+//                     style={{ minHeight: 150, background: "#e0e0e0", padding: 10 }}
+//                   >
+//                     {deals
+//                       .filter(deal => deal.status === status)
+//                       .map((deal, index) => (
+//                         <Draggable key={deal.id} draggableId={deal.id} index={index}>
+//                           {(provided) => (
+//                             <div
+//                               ref={provided.innerRef}
+//                               {...provided.draggableProps}
+//                               {...provided.dragHandleProps}
+//                               style={{
+//                                 margin: "8px 0",
+//                                 background: "#fff",
+//                                 padding: 10,
+//                                 borderRadius: 5,
+//                                 ...provided.draggableProps.style,
+//                               }}
+//                             >
+//                               {deal.title} - ₹{deal.amount}
+//                             </div>
+//                           )}
+//                         </Draggable>
+//                       ))}
+//                     {provided.placeholder}
+//                   </div>
+//                 )}
+//               </Droppable>
+//             </Col>
+//           ))}
+//         </Row>
+//       </DragDropContext>
 //     </div>
 //   );
 // };
 
-import { useEffect, useState, useMemo } from "react";
-import { db } from "../../firebase/firebase";
-import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
-import { Col, Row, Button, Input, Modal, Form, Select, message, Spin } from "antd";
-import { useGetIdentity } from "@refinedev/core";
-import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+// import { useEffect, useState } from "react";
+// import { db } from "../../firebase/firebase";
+// import {
+//   collection,
+//   getDocs,
+//   addDoc,
+//   updateDoc,
+//   doc,
+// } from "firebase/firestore";
+// import {
+//   Col, Row, Button, Input, Modal, Form, Select, message, Spin,
+// } from "antd";
+// import { useGetIdentity } from "@refinedev/core";
+// import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
+// // TYPES
+// interface Deal {
+//   id: string;
+//   title: string;
+//   company: string;
+//   amount: number;
+//   status: string;
+//   date: string;
+//   userId: string;
+// }
+
+// interface Company {
+//   id: string;
+//   name: string;
+//   userId: string;
+// }
+
+// // Component
+// export const SalesPipeline = () => {
+//   const [deals, setDeals] = useState<Deal[]>([]);
+//   const [companies, setCompanies] = useState<Company[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [form] = Form.useForm();
+//   const [isModalVisible, setIsModalVisible] = useState(false);
+//   const { data: user } = useGetIdentity();
+
+//   const statusList = ["new", "follow-up", "under review", "demo", "won", "lost"];
+
+//   useEffect(() => {
+//     const fetchData = async () => {
+//       if (!user?.email) return;
+//       try {
+//         const dealSnap = await getDocs(collection(db, "sales_pipeline"));
+//         const companySnap = await getDocs(collection(db, "company"));
+
+//         const dealsData: Deal[] = dealSnap.docs.map(doc => ({
+//           id: doc.id,
+//           ...(doc.data() as Omit<Deal, "id">),
+//         })).filter(deal => deal.userId === user.email);
+
+//         const companyData: Company[] = companySnap.docs.map(doc => ({
+//           id: doc.id,
+//           ...(doc.data() as Omit<Company, "id">),
+//         })).filter(company => company.userId === user.email);
+
+//         setDeals(dealsData);
+//         setCompanies(companyData);
+//       } catch (err) {
+//         message.error("Failed to fetch data");
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     fetchData();
+//   }, [user]);
+
+//   const onDragEnd = async (result: DropResult) => {
+//     if (!result.destination) return;
+//     const { draggableId, destination } = result;
+
+//     const draggedDeal = deals.find(deal => deal.id === draggableId);
+//     if (!draggedDeal || draggedDeal.status === destination.droppableId) return;
+
+//     try {
+//       const newStatus = destination.droppableId;
+//       const updatedDeals = deals.map(deal =>
+//         deal.id === draggableId ? { ...deal, status: newStatus } : deal
+//       );
+
+//       setDeals(updatedDeals);
+//       await updateDoc(doc(db, "sales_pipeline", draggableId), {
+//         status: newStatus,
+//         date: new Date().toLocaleDateString(),
+//       });
+//       message.success("Deal status updated");
+//     } catch (error) {
+//       console.error(error);
+//       message.error("Failed to update deal");
+//     }
+//   };
+
+//   const handleAddDeal = async () => {
+//     try {
+//       const values = await form.validateFields();
+//       const selectedCompany = companies.find(c => c.id === values.company);
+//       if (!selectedCompany) return message.error("Invalid company selected");
+
+//       const newDeal: Omit<Deal, "id"> = {
+//         title: values.title,
+//         company: selectedCompany.name,
+//         amount: parseFloat(values.amount),
+//         status: values.status || "new",
+//         date: new Date().toLocaleDateString(),
+//         userId: user.email,
+//       };
+
+//       const docRef = await addDoc(collection(db, "sales_pipeline"), newDeal);
+//       setDeals([...deals, { id: docRef.id, ...newDeal }]);
+//       message.success("Deal added");
+//       form.resetFields();
+//       setIsModalVisible(false);
+//     } catch (err) {
+//       message.error("Error adding deal");
+//     }
+//   };
+
+//   if (loading) return <Spin size="large" style={{ margin: "100px auto", display: "block" }} />;
+
+//   return (
+//     <div style={{ padding: 20, background: "#f3f4f6" }}>
+//       <Button type="primary" onClick={() => setIsModalVisible(true)} style={{ marginBottom: 20 }}>
+//         + Add Deal
+//       </Button>
+
+//       <Modal
+//         open={isModalVisible}
+//         title="Add Deal"
+//         onCancel={() => setIsModalVisible(false)}
+//         onOk={handleAddDeal}
+//       >
+//         <Form layout="vertical" form={form}>
+//           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+//             <Input />
+//           </Form.Item>
+
+//           <Form.Item name="company" label="Company" rules={[{ required: true }]}>
+//             <Select placeholder="Select a company">
+//               {companies.map(c => (
+//                 <Select.Option key={c.id} value={c.id}>{c.name}</Select.Option>
+//               ))}
+//             </Select>
+//           </Form.Item>
+
+//           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+//             <Select>
+//               {statusList.map(s => (
+//                 <Select.Option key={s} value={s}>{s.toUpperCase()}</Select.Option>
+//               ))}
+//             </Select>
+//           </Form.Item>
+
+//           <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+//             <Input type="number" />
+//           </Form.Item>
+
+//           <Form.Item label="Owner">
+//             <Input disabled value={user?.email} />
+//           </Form.Item>
+//         </Form>
+//       </Modal>
+
+//       <DragDropContext onDragEnd={onDragEnd}>
+//         <Row gutter={16}>
+//           {statusList.map(status => (
+//             <Col span={4} key={status}>
+//               <h4>{status.toUpperCase()}</h4>
+//               <Droppable droppableId={status}>
+//                 {(provided) => (
+//                   <div
+//                     ref={provided.innerRef}
+//                     {...provided.droppableProps}
+//                     style={{ minHeight: 150, background: "#e0e0e0", padding: 10 }}
+//                   >
+//                     {deals
+//                       .filter(deal => deal.status === status)
+//                       .map((deal, index) => (
+//                         <Draggable key={deal.id} draggableId={deal.id} index={index}>
+//                           {(provided) => (
+//                             <div
+//                               ref={provided.innerRef}
+//                               {...provided.draggableProps}
+//                               {...provided.dragHandleProps}
+//                               style={{
+//                                 margin: "8px 0",
+//                                 background: "#fff",
+//                                 padding: 10,
+//                                 borderRadius: 5,
+//                                 ...provided.draggableProps.style,
+//                               }}
+//                             >
+//                               {deal.title} - ₹{deal.amount}
+//                             </div>
+//                           )}
+//                         </Draggable>
+//                       ))}
+//                     {provided.placeholder}
+//                   </div>
+//                 )}
+//               </Droppable>
+//             </Col>
+//           ))}
+//         </Row>
+//       </DragDropContext>
+//     </div>
+//   );
+// };
+
+// import { useEffect, useState } from "react";
+// import { db } from "../../firebase/firebase";
+// import {
+//   collection,
+//   getDocs,
+//   addDoc,
+//   updateDoc,
+//   doc,
+// } from "firebase/firestore";
+// import {
+//   Col,
+//   Row,
+//   Button,
+//   Input,
+//   Modal,
+//   Form,
+//   Select,
+//   message,
+//   Spin,
+//   Space,
+// } from "antd";
+// import { useGetIdentity } from "@refinedev/core";
+// import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+
+// // ==== Types ====
+// interface Deal {
+//   id: string;
+//   title: string;
+//   company: string;
+//   amount: number;
+//   status: string;
+//   date: string;
+//   userId: string;
+// }
+
+// interface Company {
+//   id: string;
+//   name: string;
+//   userId: string;
+//   logoUrl?:string
+// }
+
+// interface Identity {
+//   email: string;
+//   uid: string;
+//   [key: string]: any;
+// }
+
+// // ==== Component ====
+// export const SalesPipeline = () => {
+//   const [deals, setDeals] = useState<Deal[]>([]);
+//   const [companies, setCompanies] = useState<Company[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [form] = Form.useForm();
+//   const [isModalVisible, setIsModalVisible] = useState(false);
+//   const [isAddCompanyModalVisible, setIsAddCompanyModalVisible] = useState(false);
+//   const [newCompanyName, setNewCompanyName] = useState("");
+//   const { data: user } = useGetIdentity<Identity>();
+
+//   const statusList = [
+//     "new",
+//     "follow-up",
+//     "under review",
+//     "demo",
+//     "won",
+//     "lost",
+//   ];
+
+//   const fetchDeals = async () => {
+//     if (!user?.email) return;
+//     try {
+//       const dealSnap = await getDocs(collection(db, "sales_pipeline"));
+//       const dealsData: Deal[] = dealSnap.docs
+//         .map((doc) => ({
+//           id: doc.id,
+//           ...(doc.data() as Omit<Deal, "id">),
+//         }))
+//         .filter((deal) => deal.userId === user.email);
+//       setDeals(dealsData);
+//     } catch (err) {
+//       message.error("Failed to fetch deals");
+//     }
+//   };
+
+//   const fetchCompanies = async () => {
+//     if (!user?.email) {
+//       message.error("User is not authenticated");
+//       return;
+//     }
+
+//     try {
+//       const companySnap = await getDocs(collection(db, "companies"));
+//       const companyData: Company[] = companySnap.docs
+//         .map((doc) => ({
+//           id: doc.id,
+//           ...(doc.data() as Omit<Company, "id">),
+//         }))
+//         .filter((company) => company.userId === user.email);
+
+//       // Console log to debug
+//       console.log(companyData);
+
+//       if (companyData.length === 0) {
+//         message.info("No companies found");
+//       }
+
+//       setCompanies(companyData);
+//     } catch (err) {
+//       message.error("Failed to fetch companies");
+//       console.error("Error fetching companies:", err);
+//     }
+// };
+
+
+//   useEffect(() => {
+//     setLoading(true);
+//     fetchDeals().finally(() => setLoading(false));
+//   }, [user]);
+
+//   useEffect(() => {
+//     fetchCompanies();
+//   }, [user?.email]); // Fetch companies only when user?.email changes and is truthy
+
+//   const handleAddCompany = async () => {
+//     if (!newCompanyName.trim()) return message.error("Please enter company name");
+//     try {
+//       const docRef = await addDoc(collection(db, "companies"), {
+//         name: newCompanyName,
+//         userId: user!.email,
+//       });
+
+//       const newCompany: Company = {
+//         id: docRef.id,
+//         name: newCompanyName,
+//         userId: user!.email,
+//       };
+
+//       setCompanies((prev) => [...prev, newCompany]);
+//       setNewCompanyName("");
+//       setIsAddCompanyModalVisible(false);
+//       message.success("Company added successfully");
+//     } catch (err) {
+//       message.error("Error adding company");
+//     }
+//   };
+
+//   const onDragEnd = async (result: any) => {
+//     if (!result.destination) return;
+//     const { draggableId, destination } = result;
+
+//     const draggedDeal = deals.find((deal) => deal.id === draggableId);
+//     if (!draggedDeal || draggedDeal.status === destination.droppableId) return;
+
+//     try {
+//       const newStatus = destination.droppableId;
+//       const updatedDeals = deals.map((deal) =>
+//         deal.id === draggableId ? { ...deal, status: newStatus } : deal
+//       );
+
+//       setDeals(updatedDeals);
+//       await updateDoc(doc(db, "sales_pipeline", draggableId), {
+//         status: newStatus,
+//         date: new Date().toLocaleDateString(),
+//       });
+//       message.success("Deal status updated");
+//     } catch (error) {
+//       console.error(error);
+//       message.error("Failed to update deal");
+//     }
+//   };
+
+//   const handleAddDeal = async () => {
+//     try {
+//       const values = await form.validateFields();
+//       const selectedCompany = companies.find((c) => c.id === values.company);
+//       if (!selectedCompany) return message.error("Invalid company selected");
+
+//       const newDeal: Omit<Deal, "id"> = {
+//         title: values.title,
+//         company: selectedCompany.name,
+//         amount: parseFloat(values.amount),
+//         status: values.status || "new",
+//         date: new Date().toLocaleDateString(),
+//         userId: user!.email,
+//       };
+
+//       const docRef = await addDoc(collection(db, "sales_pipeline"), newDeal);
+//       setDeals([...deals, { id: docRef.id, ...newDeal }]);
+//       message.success("Deal added");
+//       form.resetFields();
+//       setIsModalVisible(false);
+//     } catch (err) {
+//       message.error("Error adding deal");
+//     }
+//   };
+
+//   const showAddDealModal = () => {
+//     setIsModalVisible(true);
+//   };
+
+//   if (loading) {
+//     return (
+//       <div style={{ display: "flex", justifyContent: "center", marginTop: "20vh" }}>
+//         <Spin size="large" />
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div style={{ padding: 20, background: "#f9fafb", minHeight: "100vh" }}>
+//       <Space style={{ marginBottom: 20 }}>
+//         <Button
+//           type="primary"
+//           onClick={showAddDealModal}
+//           style={{ background: "#2563eb", borderColor: "#2563eb" }}
+//         >
+//           + Add Deal
+//         </Button>
+//         <Button
+//           onClick={() => setIsAddCompanyModalVisible(true)}
+//           style={{ background: "#10b981", borderColor: "#10b981", color: "#fff" }}
+//         >
+//           + Add Company
+//         </Button>
+//       </Space>
+
+//       {/* Modal: Add Deal */}
+//       <Modal
+//         open={isModalVisible}
+//         title="Add New Deal"
+//         onCancel={() => setIsModalVisible(false)}
+//         onOk={handleAddDeal}
+//         okText="Add Deal"
+//       >
+//         <Form layout="vertical" form={form}>
+//           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+//             <Input placeholder="Enter deal title" />
+//           </Form.Item>
+//           <Form.Item name="company" label="Company" rules={[{ required: true }]}>
+//             <Select placeholder="Select a company">
+//               {companies.map((c) => (
+//                 <Select.Option key={c.id} value={c.id}>
+//                   {c.name}
+//                 </Select.Option>
+//               ))}
+//             </Select>
+//           </Form.Item>
+//           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+//             <Select placeholder="Select status">
+//               {statusList.map((s) => (
+//                 <Select.Option key={s} value={s}>
+//                   {s.toUpperCase()}
+//                 </Select.Option>
+//               ))}
+//             </Select>
+//           </Form.Item>
+//           <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+//             <Input type="number" placeholder="Enter deal amount" />
+//           </Form.Item>
+//           <Form.Item label="Owner">
+//             <Input disabled value={user?.email} />
+//           </Form.Item>
+//         </Form>
+//       </Modal>
+
+//       {/* Modal: Add Company */}
+//       <Modal
+//         open={isAddCompanyModalVisible}
+//         title="Add New Company"
+//         onCancel={() => setIsAddCompanyModalVisible(false)}
+//         onOk={handleAddCompany}
+//         okText="Add Company"
+//       >
+//         <Input
+//           placeholder="Enter company name"
+//           value={newCompanyName}
+//           onChange={(e) => setNewCompanyName(e.target.value)}
+//         />
+//       </Modal>
+
+//       {/* Drag and Drop Sales Board */}
+//       <DragDropContext onDragEnd={onDragEnd}>
+//         <Row gutter={[16, 16]}>
+//           {statusList.map((status) => (
+//             <Col xs={24} sm={12} md={8} lg={4} key={status}>
+//               <div
+//                 style={{
+//                   background: "#fff",
+//                   borderRadius: 12,
+//                   padding: 12,
+//                   minHeight: 400,
+//                   maxHeight: "75vh",
+//                   overflowY: "auto",
+//                   boxShadow: "0 3px 10px rgba(0,0,0,0.05)",
+//                   borderTop: `4px solid ${
+//                     status === "won"
+//                       ? "#22c55e"
+//                       : status === "lost"
+//                       ? "#ef4444"
+//                       : "#3b82f6"
+//                   }`,
+//                 }}
+//               >
+//                 <h4
+//                   style={{
+//                     textAlign: "center",
+//                     textTransform: "uppercase",
+//                     fontWeight: 600,
+//                     color: "#111827",
+//                     marginBottom: 12,
+//                   }}
+//                 >
+//                   {status}
+//                 </h4>
+//                 <Droppable droppableId={status}>
+//                   {(provided) => (
+//                     <div
+//                       ref={provided.innerRef}
+//                       {...provided.droppableProps}
+//                       style={{ minHeight: 100 }}
+//                     >
+//                       {deals
+//                         .filter((deal) => deal.status === status)
+//                         .map((deal, index) => (
+//                           <Draggable key={deal.id} draggableId={deal.id} index={index}>
+//                             {(provided) => (
+//                               <div
+//                                 ref={provided.innerRef}
+//                                 {...provided.draggableProps}
+//                                 {...provided.dragHandleProps}
+//                                 style={{
+//                                   padding: "12px",
+//                                   borderRadius: "12px",
+//                                   background: "#f0f9ff",
+//                                   marginBottom: 12,
+//                                   boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+//                                   transition: "all 0.3s ease",
+//                                   ...provided.draggableProps.style,
+//                                 }}
+//                               >
+//                                 <div
+//                                   style={{
+//                                     fontWeight: 600,
+//                                     color: "#0369a1",
+//                                     fontSize: 16,
+//                                   }}
+//                                 >
+//                                   {deal.title}
+//                                 </div>
+//                                 <div
+//                                   style={{
+//                                     fontSize: 14,
+//                                     color: "#0c4a6e",
+//                                     marginTop: 4,
+//                                   }}
+//                                 >
+//                                   ₹{deal.amount} • {deal.company}
+//                                 </div>
+//                                 <div
+//                                   style={{
+//                                     fontSize: 12,
+//                                     color: "#64748b",
+//                                     marginTop: 6,
+//                                   }}
+//                                 >
+//                                   {new Intl.DateTimeFormat("en-IN", {
+//                                     dateStyle: "medium",
+//                                   }).format(new Date(deal.date))}
+//                                 </div>
+//                               </div>
+//                             )}
+//                           </Draggable>
+//                         ))}
+//                       {provided.placeholder}
+//                     </div>
+//                   )}
+//                 </Droppable>
+//               </div>
+//             </Col>
+//           ))}
+//         </Row>
+//       </DragDropContext>
+//     </div>
+//   );
+// };
+
+import { useEffect, useState } from "react";
+import { db } from "../../firebase/firebase";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  query,
+  where,
+} from "firebase/firestore";
+import {
+  Col,
+  Row,
+  Button,
+  Input,
+  Modal,
+  Form,
+  Select,
+  message,
+  Spin,
+  Space,
+} from "antd";
+import { useGetIdentity } from "@refinedev/core";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { getAuth } from "firebase/auth";
+
+// ==== Types ====
+interface Deal {
+  id: string;
+  title: string;
+  company: string;
+  amount: number;
+  status: string;
+  date: string;
+  userId: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  userId: string;
+  logoUrl?: string;
+  member?: string;
+}
+
+interface Identity {
+  email: string;
+  uid: string;
+  [key: string]: any;
+}
+
+// ==== Component ====
 export const SalesPipeline = () => {
-  const [deals, setDeals] = useState([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [form] = Form.useForm();
-  const { data: user } = useGetIdentity();
-  const [companies, setCompanies] = useState([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [form] = Form.useForm();
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isAddCompanyModalVisible, setIsAddCompanyModalVisible] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const { data: user } = useGetIdentity<Identity>();
+  
+  // Get the Firebase Auth User ID
+  const firebaseUser = getAuth().currentUser;
+  const userId = firebaseUser?.uid || "";
+
+  const statusList = [
+    "new",
+    "follow-up",
+    "under review",
+    "demo",
+    "won",
+    "lost",
+  ];
+
+  const fetchDeals = async () => {
+    if (!user?.email) return;
+    try {
+      const dealSnap = await getDocs(collection(db, "sales_pipeline"));
+      const dealsData: Deal[] = dealSnap.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Deal, "id">),
+        }))
+        .filter((deal) => deal.userId === user.email);
+      setDeals(dealsData);
+    } catch (err) {
+      message.error("Failed to fetch deals");
+    }
+  };
+
+  const fetchCompanies = async () => {
+    if (!userId) {
+      console.log("No user ID available for fetching companies");
+      return;
+    }
+
+    try {
+      // Create a query to get companies where userId matches the current Firebase user ID
+      const companiesQuery = query(
+        collection(db, "companies"), 
+        where("userId", "==", userId)
+      );
+      
+      const companySnap = await getDocs(companiesQuery);
+      
+      // Map the company documents to our Company interface
+      const companyData: Company[] = companySnap.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Company, "id">),
+      }));
+
+      // Also get companies created in the sales pipeline that use email as userId
+      if (user?.email) {
+        const emailCompaniesQuery = query(
+          collection(db, "companies"),
+          where("userId", "==", user.email)
+        );
+        
+        const emailCompanySnap = await getDocs(emailCompaniesQuery);
+        const emailCompanyData: Company[] = emailCompanySnap.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Company, "id">),
+        }));
+        
+        // Combine both sets of companies, avoiding duplicates
+        const allCompanies = [...companyData];
+        
+        emailCompanyData.forEach(company => {
+          if (!allCompanies.some(c => c.id === company.id)) {
+            allCompanies.push(company);
+          }
+        });
+        
+        setCompanies(allCompanies);
+      } else {
+        setCompanies(companyData);
+      }
+
+      // Console log to debug
+      console.log("Fetched companies:", companyData);
+
+      if (companyData.length === 0) {
+        console.log("No companies found with userId:", userId);
+      }
+    } catch (err) {
+      message.error("Failed to fetch companies");
+      console.error("Error fetching companies:", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.email) return;
-      try {
-        const dealsSnapshot = await getDocs(collection(db, "sales_pipeline"));
-        const companiesSnapshot = await getDocs(collection(db, "company"));
-
-        const dealsData = dealsSnapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((deal) => deal.userId === user.email);
-
-        const companiesData = companiesSnapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((company) => company.userId === user.email);
-
-        setDeals(dealsData);
-        setCompanies(companiesData);
-      } catch (error) {
-        console.error("Error fetching data: ", error);
-        message.error("Failed to fetch data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    setLoading(true);
+    fetchDeals().finally(() => setLoading(false));
   }, [user]);
 
-  const statusList = ["new", "follow-up", "under review", "demo", "won", "lost"];
+  useEffect(() => {
+    fetchCompanies();
+  }, [userId, user?.email]); // Fetch companies when either userId or user.email changes
 
-  const onDragEnd = async (result) => {
+  const handleAddCompany = async () => {
+    if (!newCompanyName.trim()) return message.error("Please enter company name");
+    try {
+      // Use Firebase Auth user ID instead of email for consistency
+      const newCompanyData = {
+        name: newCompanyName,
+        userId: userId || user?.email || "", // Fallback to email if uid not available
+      };
+      
+      const docRef = await addDoc(collection(db, "companies"), newCompanyData);
+
+      const newCompany: Company = {
+        id: docRef.id,
+        ...newCompanyData
+      };
+
+      setCompanies((prev) => [...prev, newCompany]);
+      setNewCompanyName("");
+      setIsAddCompanyModalVisible(false);
+      message.success("Company added successfully");
+    } catch (err) {
+      message.error("Error adding company");
+    }
+  };
+
+  const onDragEnd = async (result: any) => {
     if (!result.destination) return;
-
     const { draggableId, destination } = result;
+
     const draggedDeal = deals.find((deal) => deal.id === draggableId);
     if (!draggedDeal || draggedDeal.status === destination.droppableId) return;
 
     try {
+      const newStatus = destination.droppableId;
       const updatedDeals = deals.map((deal) =>
-        deal.id === draggableId ? { ...deal, status: destination.droppableId } : deal
+        deal.id === draggableId ? { ...deal, status: newStatus } : deal
       );
+
       setDeals(updatedDeals);
-      await updateDoc(doc(db, "sales_pipeline", draggableId), { status: destination.droppableId });
-      message.success("Deal Updated Successfully!");
+      await updateDoc(doc(db, "sales_pipeline", draggableId), {
+        status: newStatus,
+        date: new Date().toLocaleDateString(),
+      });
+      message.success("Deal status updated");
     } catch (error) {
-      console.error("Failed to update deal: ", error);
+      console.error(error);
       message.error("Failed to update deal");
     }
   };
 
-  const showModal = () => setIsModalVisible(true);
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    form.resetFields();
-  };
-
-  const handleOk = async () => {
+  const handleAddDeal = async () => {
     try {
       const values = await form.validateFields();
-      const selectedCompany = companies.find((company) => company.id === values.company);
-      if (!selectedCompany) return message.error("Invalid Company Selected");
+      const selectedCompany = companies.find((c) => c.id === values.company);
+      if (!selectedCompany) return message.error("Invalid company selected");
 
-      const newDeal = {
+      const newDeal: Omit<Deal, "id"> = {
         title: values.title,
         company: selectedCompany.name,
         amount: parseFloat(values.amount),
-        status: "new",
-        userId: user.email
+        status: values.status || "new",
+        date: new Date().toLocaleDateString(),
+        userId: user!.email,
       };
 
       const docRef = await addDoc(collection(db, "sales_pipeline"), newDeal);
       setDeals([...deals, { id: docRef.id, ...newDeal }]);
-      message.success("Deal Added Successfully!");
-      handleCancel();
-    } catch (error) {
-      console.error("Failed to add deal: ", error);
-      message.error("Failed to add deal");
+      message.success("Deal added");
+      form.resetFields();
+      setIsModalVisible(false);
+    } catch (err) {
+      message.error("Error adding deal");
     }
   };
 
-  const pieData = useMemo(() => [
-    { name: "Won Deals", value: deals.filter((deal) => deal.status === "won").length },
-    { name: "Lost Deals", value: deals.filter((deal) => deal.status === "lost").length }
-  ], [deals]);
+  const showAddDealModal = () => {
+    setIsModalVisible(true);
+  };
 
-  const COLORS = ["#0088FE", "#FF8042"];
-
-  if (loading) return <Spin size="large" style={{ display: "block", margin: "100px auto" }} />;
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", marginTop: "20vh" }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: "20px", background: "#f3f4f6" }}>
-      <Button type="primary" onClick={showModal} style={{ marginBottom: "20px" }}>+ Add New Deal</Button>
-      <Modal title="Add New Deal" open={isModalVisible} onOk={handleOk} onCancel={handleCancel}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}> <Input placeholder="Enter Title" /> </Form.Item>
-          <Form.Item name="amount" label="Amount" rules={[{ required: true }]}> <Input placeholder="Enter Amount" type="number" /> </Form.Item>
-          <Form.Item name="company" label="Company" rules={[{ required: true }]}> 
-            <Select placeholder="Select Company">
-              {companies.map((company) => ( <Select.Option key={company.id} value={company.id}>{company.name}</Select.Option> ))}
+    <div style={{ padding: 20, background: "#f9fafb", minHeight: "100vh" }}>
+      <Space style={{ marginBottom: 20 }}>
+        <Button
+          type="primary"
+          onClick={showAddDealModal}
+          style={{ background: "#2563eb", borderColor: "#2563eb" }}
+        >
+          + Add Deal
+        </Button>
+        <Button
+          onClick={() => setIsAddCompanyModalVisible(true)}
+          style={{ background: "#10b981", borderColor: "#10b981", color: "#fff" }}
+        >
+          + Add Company
+        </Button>
+      </Space>
+
+      {/* Modal: Add Deal */}
+      <Modal
+        open={isModalVisible}
+        title="Add New Deal"
+        onCancel={() => setIsModalVisible(false)}
+        onOk={handleAddDeal}
+        okText="Add Deal"
+      >
+        <Form layout="vertical" form={form}>
+          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+            <Input placeholder="Enter deal title" />
+          </Form.Item>
+          <Form.Item name="company" label="Company" rules={[{ required: true }]}>
+            <Select placeholder="Select a company">
+              {companies.map((c) => (
+                <Select.Option key={c.id} value={c.id}>
+                  {c.name}
+                </Select.Option>
+              ))}
             </Select>
+          </Form.Item>
+          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+            <Select placeholder="Select status">
+              {statusList.map((s) => (
+                <Select.Option key={s} value={s}>
+                  {s.toUpperCase()}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+            <Input type="number" placeholder="Enter deal amount" />
+          </Form.Item>
+          <Form.Item label="Owner">
+            <Input disabled value={user?.email} />
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* Modal: Add Company */}
+      <Modal
+        open={isAddCompanyModalVisible}
+        title="Add New Company"
+        onCancel={() => setIsAddCompanyModalVisible(false)}
+        onOk={handleAddCompany}
+        okText="Add Company"
+      >
+        <Input
+          placeholder="Enter company name"
+          value={newCompanyName}
+          onChange={(e) => setNewCompanyName(e.target.value)}
+        />
+      </Modal>
+
+      {/* Drag and Drop Sales Board */}
       <DragDropContext onDragEnd={onDragEnd}>
-        <Row gutter={16}>
+        <Row gutter={[16, 16]}>
           {statusList.map((status) => (
-            <Col span={4} key={status}>
-              <h3>{status.toUpperCase()}</h3>
-              <Droppable droppableId={status}>
-                {(provided) => (
-                  <div ref={provided.innerRef} {...provided.droppableProps} style={{ minHeight: "200px", padding: "10px", background: "#e8e8e8" }}>
-                    {deals.filter((deal) => deal.status === status).map((deal, index) => (
-                      <Draggable key={deal.id} draggableId={deal.id} index={index}>
-                        {(provided) => (
-                          <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} style={{ margin: "10px 0", padding: "10px", background: "#fff", borderRadius: "5px" }}>
-                            {deal.title} - {deal.company} - ₹{deal.amount}
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
+            <Col xs={24} sm={12} md={8} lg={4} key={status}>
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 12,
+                  padding: 12,
+                  minHeight: 400,
+                  maxHeight: "75vh",
+                  overflowY: "auto",
+                  boxShadow: "0 3px 10px rgba(0,0,0,0.05)",
+                  borderTop: `4px solid ${
+                    status === "won"
+                      ? "#22c55e"
+                      : status === "lost"
+                      ? "#ef4444"
+                      : "#3b82f6"
+                  }`,
+                }}
+              >
+                <h4
+                  style={{
+                    textAlign: "center",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                    color: "#111827",
+                    marginBottom: 12,
+                  }}
+                >
+                  {status}
+                </h4>
+                <Droppable droppableId={status}>
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      style={{ minHeight: 100 }}
+                    >
+                      {deals
+                        .filter((deal) => deal.status === status)
+                        .map((deal, index) => (
+                          <Draggable key={deal.id} draggableId={deal.id} index={index}>
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                style={{
+                                  padding: "12px",
+                                  borderRadius: "12px",
+                                  background: "#f0f9ff",
+                                  marginBottom: 12,
+                                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                                  transition: "all 0.3s ease",
+                                  ...provided.draggableProps.style,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    color: "#0369a1",
+                                    fontSize: 16,
+                                  }}
+                                >
+                                  {deal.title}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 14,
+                                    color: "#0c4a6e",
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  ₹{deal.amount} • {deal.company}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#64748b",
+                                    marginTop: 6,
+                                  }}
+                                >
+                                  {new Intl.DateTimeFormat("en-IN", {
+                                    dateStyle: "medium",
+                                  }).format(new Date(deal.date))}
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
             </Col>
           ))}
         </Row>
       </DragDropContext>
-
-      <PieChart width={400} height={400}>
-        <Pie data={pieData} cx={200} cy={200} outerRadius={100} dataKey="value" label>
-          {pieData.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-        </Pie>
-        <Tooltip />
-        <Legend />
-      </PieChart>
     </div>
   );
 };
- 

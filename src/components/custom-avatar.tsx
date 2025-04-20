@@ -8,7 +8,7 @@ type Props = AvatarProps & {
 const CustomAvatar = ({name, style, ...rest}: Props) => {
   return (
     <AntdAvatar
-      alt={"Hrithik Molasi"}
+      alt={"AS"}
       size="small"
       style={{
         backgroundColor: '#87d068',

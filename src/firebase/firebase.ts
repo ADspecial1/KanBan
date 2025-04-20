@@ -104,7 +104,7 @@
 // };
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth,GoogleAuthProvider  } from "firebase/auth";
 import { getStorage } from "firebase/storage"
 import {
   getFirestore,
@@ -115,7 +115,19 @@ import {
   addDoc,
   deleteDoc,
 } from "firebase/firestore";
+import { setDoc, Timestamp } from "firebase/firestore";
 
+// Example function to create or update a deal
+const createOrUpdateDeal = async (dealId, dealData) => {
+  try {
+    await setDoc(doc(db, "sales_pipeline", dealId), {
+      ...dealData,
+      date: Timestamp.now(), // Set the current timestamp
+    });
+  } catch (error) {
+    console.error("Error creating/updating deal:", error);
+  }
+};
 // Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyDBlz0BgJiDQKiONs7eBwrd0--P-J1y1q0",
@@ -130,6 +142,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const provider = new GoogleAuthProvider();
 
 // Fetch Sales Pipeline Data
 export const getSalesPipeline = async () => {

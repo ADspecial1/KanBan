@@ -6,7 +6,7 @@ import { CloseOutlined } from "@ant-design/icons";
 import { Button, Card, Drawer, Form, Input, Spin } from "antd";
 
 import { getNameInitials } from "@/utilities";
-import { UPDATE_USER_MUTATION } from "@/graphql/mutations";
+import { UPDATE_ACCOUNTDATA_MUTATION } from "@/graphql/mutations";
 
 import { Text } from "../text";
 import CustomAvatar from "../custom-avatar";
@@ -35,7 +35,7 @@ export const AccountSettings = ({ opened, setOpened, userId }: Props) => {
     action: "edit",
     id: userId,
     meta: {
-      gqlMutation: UPDATE_USER_MUTATION,
+      gqlMutation: UPDATE_ACCOUNTDATA_MUTATION,
     },
   });
   const { avatarUrl, name } = queryResult?.data?.data || {};
